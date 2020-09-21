@@ -1,32 +1,26 @@
 package:
   name: tomophantom
-  version: {{ environ.get('CIL_VERSION', '') }}
+  version: 1.4.3
 
 build:
   preserve_egg_dir: False
-  number: 0
-  script_env:
-    - CIL_VERSION
+  number: 1
 
 requirements:
   build:
-    - python
-    - numpy
+    - python {{ python }}
+    - {{ pin_compatible('numpy', max_pin='x.x') }}
     - setuptools
     - cython
-    - enum34 # [py27]
     - cmake
     - blas=*=openblas # [not win]
 
 
   run:
+    - python {{ python }}
     - {{ pin_compatible('numpy', max_pin='x.x') }}
-    - python
-    - numpy
     - vc 14 # [win and py36]
     - vc 14 # [win and py35]
-    - vc 9  # [win and py27]
-    - enum34 # [py27]
     - libgcc-ng # [unix]
 
 about:
