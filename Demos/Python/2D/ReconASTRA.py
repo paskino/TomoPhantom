@@ -4,13 +4,13 @@
 GPLv3 license (ASTRA toolbox)
 Note that the TomoPhantom package is released under Apache License, Version 2.0
 
-Script to generate 2D analytical phantoms and their sinograms with added noise and artifacts
+Script to generate 2D analytical phantoms and their sinograms with added noise 
 Sinograms then reconstructed using ASTRA TOOLBOX 
 
 >>>>> Dependencies (reconstruction): <<<<<
 1. ASTRA toolbox: conda install -c astra-toolbox astra-toolbox
-2. TomoRec: conda install -c dkazanc tomorec
-or install from https://github.com/dkazanc/TomoRec
+2. tomobar: conda install -c dkazanc tomobar
+or install from https://github.com/dkazanc/ToMoBAR
 
 This demo demonstrates frequent inaccuracies which are accosiated with X-ray imaging:
 zingers, rings and noise
@@ -54,138 +54,127 @@ plt.colorbar(ticks=[0, 150, 250], orientation='vertical')
 plt.title('{}''{}'.format('Analytical sinogram of model no.',model))
 
 #%%
-# Adding artifacts and noise
-from tomophantom.supp.artifacts import ArtifactsClass
+# Adding noise
+from tomophantom.supp.artifacts import _Artifacts_
 
-# adding noise
-artifacts_add = ArtifactsClass(sino_an)
-#noisy_sino = artifacts_add.noise(sigma=0.1,noisetype='Gaussian')
-noisy_sino = artifacts_add.noise(sigma=10000,noisetype='Poisson')
+# forming dictionaries with artifact types
+_noise_ =  {'type' : 'Poisson',
+            'sigma' : 10000, # noise amplitude
+            'seed' : 0}
 
-# adding object shifts (misalignment)
-artifacts_add = ArtifactsClass(noisy_sino)
-noisy_sino_misalign = artifacts_add.shifts(maxamplitude = 10)
-
-# adding zingers
-artifacts_add =ArtifactsClass(noisy_sino)
-noisy_zing = artifacts_add.zingers(percentage=0.25, modulus = 10)
-
-#adding stripes
-artifacts_add =ArtifactsClass(noisy_zing)
-noisy_zing_stripe = artifacts_add.stripes(percentage=1, maxthickness = 1)
-noisy_zing_stripe[noisy_zing_stripe < 0] = 0
+noisy_sino = _Artifacts_(sino_an, _noise_, _zingers_={}, _stripes_={}, _sinoshifts_= {})
 
 plt.figure()
 plt.rcParams.update({'font.size': 21})
-plt.imshow(noisy_zing_stripe,cmap="gray")
+plt.imshow(noisy_sino,cmap="gray")
 plt.colorbar(ticks=[0, 150, 250], orientation='vertical')
-plt.title('{}''{}'.format('Analytical noisy sinogram with artifacts.',model))
+plt.title('{}''{}'.format('Analytical noisy sinogram.',model))
 #%%
-# initialise TomoRec DIRECT reconstruction class ONCE
-from tomorec.methodsDIR import RecToolsDIR
+# initialise tomobar DIRECT reconstruction class ONCE
+from tomobar.methodsDIR import RecToolsDIR
 RectoolsDIR = RecToolsDIR(DetectorsDimH = P,  # DetectorsDimH # detector dimension (horizontal)
                     DetectorsDimV = None,  # DetectorsDimV # detector dimension (vertical) for 3D case only
+                    CenterRotOffset = None, # Center of Rotation (CoR) scalar (for 3D case only)
                     AnglesVec = angles_rad, # array of angles in radians
                     ObjSize = N_size, # a scalar to define reconstructed object dimensions
-                    device='cpu')
+                    device_projector='cpu')
 #%%
 print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
 print ("Reconstructing analytical sinogram using Fourier Slice method")
 print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-RecFourier = RectoolsDIR.fourier(sino_an,'linear') 
+RecFourier = RectoolsDIR.FOURIER(noisy_sino,'linear') 
 plt.figure() 
 plt.imshow(RecFourier, vmin=0, vmax=1, cmap="BuPu")
 plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
 plt.title('Fourier slice reconstruction')
 #%%
 print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-print ("Reconstructing analytical sinogram using FBP (TomoRec)...")
+print ("Reconstructing analytical sinogram using FBP (tomobar)...")
 print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-FBPrec_ideal = RectoolsDIR.FBP(sino_an)  # ideal reconstruction
-FBPrec_error = RectoolsDIR.FBP(noisy_zing_stripe) # reconstruction with artifacts
-FBPrec_misalign = RectoolsDIR.FBP(noisy_sino_misalign) # reconstruction with misalignment
+FBPrec = RectoolsDIR.FBP(noisy_sino)  # ideal reconstruction
 
 plt.figure()
-plt.subplot(131)
-plt.imshow(FBPrec_ideal, vmin=0, vmax=1, cmap="gray")
+plt.imshow(FBPrec, vmin=0, vmax=1, cmap="gray")
 plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
-plt.title('Ideal FBP reconstruction')
-plt.subplot(132)
-plt.imshow(FBPrec_error, vmin=0, vmax=1, cmap="gray")
-plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
-plt.title('Erroneous data FBP Reconstruction')
-plt.subplot(133)
-plt.imshow(FBPrec_misalign, vmin=0, vmax=1, cmap="gray")
-plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
-plt.title('Misaligned noisy FBP Reconstruction')
-plt.show()
-
-plt.figure() 
-plt.imshow(abs(FBPrec_ideal-FBPrec_error), vmin=0, vmax=1, cmap="gray")
-plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
-plt.title('FBP reconsrtuction differences')
+plt.title('FBP reconstruction')
 #%%
-# initialise TomoRec ITERATIVE reconstruction class ONCE
-from tomorec.methodsIR import RecToolsIR
+# initialise tomobar ITERATIVE reconstruction class ONCE
+from tomobar.methodsIR import RecToolsIR
 RectoolsIR = RecToolsIR(DetectorsDimH = P,  # DetectorsDimH # detector dimension (horizontal)
                     DetectorsDimV = None,  # DetectorsDimV # detector dimension (vertical) for 3D case only
+                    CenterRotOffset = None, # Center of Rotation (CoR) scalar (for 3D case only)
                     AnglesVec = angles_rad, # array of angles in radians
                     ObjSize = N_size, # a scalar to define reconstructed object dimensions
                     datafidelity='LS',# data fidelity, choose LS, PWLS (wip), GH (wip), Student (wip)
-                    OS_number = None, # the number of subsets, NONE/(or > 1) ~ classical / ordered subsets
-                    tolerance = 1e-06, # tolerance to stop outer iterations earlier
-                    device='gpu')
+                    device_projector='gpu')
 #%%
 print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-print ("Reconstructing analytical sinogram using SIRT (TomoRec)...")
+print ("Reconstructing analytical sinogram using SIRT (tomobar)...")
 print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-iterationsSIRT = 250
-SIRTrec_ideal = RectoolsIR.SIRT(sino_an,iterationsSIRT) # ideal reconstruction
-SIRTrec_error = RectoolsIR.SIRT(noisy_zing_stripe,iterationsSIRT) # error reconstruction
+# prepare dictionaries with parameters:
+_data_ = {'projection_norm_data' : noisy_sino} # data dictionary
+_algorithm_ = {'iterations' : 250}
+SIRTrec = RectoolsIR.SIRT(_data_,_algorithm_) # ideal reconstruction
 
 plt.figure()
-plt.subplot(121)
-plt.imshow(SIRTrec_ideal, vmin=0, vmax=1, cmap="gray")
+plt.imshow(SIRTrec, vmin=0, vmax=1, cmap="gray")
 plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
-plt.title('Ideal SIRT reconstruction (ASTRA)')
-plt.subplot(122)
-plt.imshow(SIRTrec_error, vmin=0, vmax=1, cmap="gray")
-plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
-plt.title('Erroneous data SIRT Reconstruction (ASTRA)')
+plt.title('SIRT Reconstruction')
 plt.show()
-
-plt.figure() 
-plt.imshow(abs(SIRTrec_ideal-SIRTrec_error), vmin=0, vmax=1, cmap="gray")
-plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
-plt.title('SIRT reconsrtuction differences')
 #%%
 print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-print ("Reconstructing using FISTA method (TomoRec)")
+print ("Reconstructing using FISTA method (tomobar)")
 print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-lc = RectoolsIR.powermethod() # calculate Lipschitz constant
+# prepare dictionaries with parameters:
+_data_ = {'projection_norm_data' : noisy_sino} # data dictionary
+lc = RectoolsIR.powermethod(_data_) # calculate Lipschitz constant (run once to initialise)
+_algorithm_ = {'iterations' : 350,
+               'lipschitz_const' : lc}
 
-# Run FISTA reconstrucion algorithm without regularisation
-RecFISTA = RectoolsIR.FISTA(noisy_zing_stripe, iterationsFISTA = 150, lipschitz_const = lc)
+# adding regularisation using the CCPi regularisation toolkit
+_regularisation_ = {'method' : 'PD_TV',
+                    'regul_param' : 0.001,
+                    'iterations' : 150,
+                    'device_regulariser': 'gpu'}
 
 # Run FISTA reconstrucion algorithm with regularisation 
-RecFISTA_reg = RectoolsIR.FISTA(noisy_zing_stripe, iterationsFISTA = 150, regularisation = 'ROF_TV', lipschitz_const = lc)
+RecFISTA_reg = RectoolsIR.FISTA(_data_, _algorithm_, _regularisation_)
 
 plt.figure()
-plt.subplot(121)
-plt.imshow(RecFISTA, vmin=0, vmax=1, cmap="gray")
-plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
-plt.title('FISTA reconstruction')
-plt.subplot(122)
 plt.imshow(RecFISTA_reg, vmin=0, vmax=1, cmap="gray")
 plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
 plt.title('TV-Regularised FISTA reconstruction')
 plt.show()
 
 # calculate errors 
-Qtools = QualityTools(phantom_2D, RecFISTA)
-RMSE_FISTA = Qtools.rmse()
 Qtools = QualityTools(phantom_2D, RecFISTA_reg)
 RMSE_FISTA_reg = Qtools.rmse()
-print("RMSE for FISTA is {}".format(RMSE_FISTA))
 print("RMSE for regularised FISTA is {}".format(RMSE_FISTA_reg))
+#%%
+print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+print ("Reconstructing using ADMM method (tomobar)")
+print ("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+# Run ADMM reconstrucion algorithm with regularisation 
+_data_ = {'projection_norm_data' : noisy_sino} # data dictionary
+_algorithm_ = {'iterations' : 15,
+               'ADMM_rho_const' : 5000.0}
+
+# adding regularisation using the CCPi regularisation toolkit
+_regularisation_ = {'method' : 'PD_TV',
+                    'regul_param' : 0.1,
+                    'iterations' : 150,
+                    'device_regulariser': 'gpu'}
+
+RecADMM_reg = RectoolsIR.ADMM(_data_, _algorithm_, _regularisation_)
+
+plt.figure()
+plt.imshow(RecADMM_reg, vmin=0, vmax=1, cmap="gray")
+plt.colorbar(ticks=[0, 0.5, 1], orientation='vertical')
+plt.title('ADMM reconstruction')
+plt.show()
+
+# calculate errors 
+Qtools = QualityTools(phantom_2D, RecADMM_reg)
+RMSE_ADMM_reg = Qtools.rmse()
+print("RMSE for regularised ADMM is {}".format(RMSE_ADMM_reg))
 #%%
