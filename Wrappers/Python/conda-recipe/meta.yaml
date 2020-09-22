@@ -11,7 +11,6 @@ requirements:
     - python {{ python }}
     - {{ pin_compatible('numpy', max_pin='x.x') }}
     - numpy {{ numpy }}
-    - setuptools
     - cython
     - cmake
     - blas=*=openblas # [not win]
