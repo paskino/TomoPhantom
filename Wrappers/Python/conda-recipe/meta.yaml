@@ -9,7 +9,6 @@ build:
 requirements:
   build:
     - python {{ python }}
-    #- {{ pin_compatible('numpy', max_pin='x.x') }}
     - numpy {{ numpy }}  
     - cython
     - cmake
@@ -18,8 +17,7 @@ requirements:
 
   run:
     - python {{ python }}
-    - numpy {{ numpy }}
-    #- {{ pin_compatible('numpy', max_pin='x.x') }}
+    - numpy
     - vc 14 # [win and py==36]
     - vc 14 # [win and py==35]
     - libgcc-ng # [unix]

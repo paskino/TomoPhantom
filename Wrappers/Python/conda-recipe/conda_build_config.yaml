@@ -8,3 +8,5 @@ numpy:
     - 1.14 # [ py != 37 ]
     - 1.15 # [ py == 37 ]
     - 1.17 # [ py == 37 ]
+pin_run_as_build:
+  numpy: x.x
